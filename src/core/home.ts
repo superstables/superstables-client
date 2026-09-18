@@ -12,8 +12,24 @@ import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
+/**
+ * SUPERSTABLES_HOME as a host may hand it over: possibly blank, possibly with a `~`, `$HOME`
+ * or `${HOME}` the host did not expand (Claude Desktop passes extension settings through
+ * verbatim). Blank means "the default"; the placeholders mean the user's home directory.
+ */
+export function expandHome(value: string | undefined): string | undefined {
+  const raw = (value ?? "").trim();
+  if (raw === "") return undefined;
+  const home = homedir();
+  const expanded = raw
+    .replace(/^\/?\$\{HOME\}/, home)
+    .replace(/^\/?\$HOME(?=\/|$)/, home)
+    .replace(/^~(?=\/|$)/, home);
+  return expanded;
+}
+
 export function homeDir(): string {
-  return resolve(process.env.SUPERSTABLES_HOME ?? join(homedir(), ".superstables"));
+  return resolve(expandHome(process.env.SUPERSTABLES_HOME) ?? join(homedir(), ".superstables"));
 }
 
 export function recordsDir(): string {

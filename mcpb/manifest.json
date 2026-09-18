@@ -28,8 +28,7 @@
     "home": {
       "type": "directory",
       "title": "Superstables home directory",
-      "description": "Where the policy, the local records and the wallet's own files live.",
-      "default": "${HOME}/.superstables",
+      "description": "Where the policy, the local records and the wallet's own files live. Leave empty for ~/.superstables in your home directory.",
       "required": false
     },
     "wallet_url": {
