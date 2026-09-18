@@ -1,5 +1,7 @@
 # Superstables client
 
+![Superstables testnet payment demo in Claude Desktop with MetaMask](docs/images/client-demo-cover.png)
+
 **Payments belong in the agent workflow.**
 
 Superstables connects service discovery, pricing and payment for AI agents. The client lets an
