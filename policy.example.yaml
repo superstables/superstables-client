@@ -1,0 +1,11 @@
+# Superstables spend policy (software policy: enforced by this client and by the wallet,
+# not by the chain). Evaluation order, first refusal wins:
+#   kill_switch → deny → allow → stablecoins → per_call → per_day
+caps:
+  per_call: 0.05 USDC   # the most one payment may be
+  per_day: 1 USDC       # the most all payments may add up to in one UTC day
+allow: []               # hostname patterns; empty = any host
+deny: []                # e.g. ["*.example.net"]
+stablecoins: [USDC]     # the only asset this release pays in
+approval: ask-every-payment   # the wallet asks the owner before every payment
+# kill_switch: true     # refuse everything

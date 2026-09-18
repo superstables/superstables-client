@@ -1,0 +1,217 @@
+// The shared vocabulary of the client: what discovery returns, what a quote is, how a
+// payment attempt moves through its states, and what a receipt records. Every surface
+// (SDK, CLI, MCP, wallet) speaks these types; nothing below imports from the surfaces.
+
+import type { PaymentRequirements, SettleResponse } from "@x402/core/types";
+
+// ── Discovery ────────────────────────────────────────────────────────────────────────────
+
+export interface ServiceParam {
+  name: string;
+  in: "query";
+  required: boolean;
+  description?: string;
+  example?: string;
+  /** Allowed values, when the service documents a closed set. */
+  enum?: string[];
+}
+
+export interface ServicePayment {
+  rail: "x402";
+  scheme: "exact";
+  /** CAIP-2, e.g. eip155:84532. */
+  network: string;
+  networkLabel: string;
+  asset: string;
+  /** Known up front when the listing carries it; the quote is authoritative. */
+  price?: { amountDecimal: number; asset: string; display: string };
+}
+
+export interface ServiceListing {
+  id: string;
+  name: string;
+  description: string;
+  /** The URL to call, without query parameters. */
+  endpoint: string;
+  method: "GET";
+  params: ServiceParam[];
+  payment: ServicePayment;
+  /** Who runs it, when known. The demo service says so explicitly. */
+  operator?: string;
+  source: "demo-catalogue" | "superstables-index";
+  live?: boolean;
+  lastSeenLive?: string;
+  testnet: boolean;
+  /** True when this client can quote and pay the service as listed. */
+  actionable: boolean;
+  notActionableReason?: string;
+}
+
+export interface ResolvedRequest {
+  serviceId?: string;
+  method: "GET";
+  /** The exact URL that will be quoted and paid, query string included. */
+  url: string;
+  params: Record<string, string>;
+}
+
+// ── Quote ────────────────────────────────────────────────────────────────────────────────
+
+/** The facts of a payment, derived from the seller's requirement — what the owner is shown. */
+export interface PaymentTerms {
+  amountDecimal: number;
+  amountAtomic: string;
+  asset: string;
+  assetAddress: string;
+  network: string;
+  networkLabel: string;
+  recipient: string;
+  scheme: string;
+  x402Version: 1 | 2;
+}
+
+export type QuoteStatus = "open" | "used" | "stale" | "expired";
+
+export interface Quote {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  status: QuoteStatus;
+  url: string;
+  serviceId?: string;
+  serviceName?: string;
+  /** The seller's own description of the resource, from the challenge. */
+  description?: string;
+  request?: ResolvedRequest;
+  terms: PaymentTerms;
+  /** The seller's requirement verbatim: exactly what the wallet will be asked to sign. */
+  requirement: PaymentRequirements;
+  /** The local (software) policy's verdict. The wallet applies the owner's policy again. */
+  policy: { allowed: boolean; reason?: string };
+  /** Who decides: always the owner's wallet in this release. */
+  approval: "wallet";
+}
+
+// ── Attempt ──────────────────────────────────────────────────────────────────────────────
+
+export type AttemptState =
+  | "awaiting_approval"
+  | "denied"
+  | "expired"
+  | "approved"
+  | "submitting"
+  | "settled"
+  | "paid_service_failed"
+  | "failed"
+  | "uncertain";
+
+/** States an attempt never leaves. */
+export const FINAL_ATTEMPT_STATES: readonly AttemptState[] = [
+  "denied", "expired", "settled", "paid_service_failed", "failed", "uncertain",
+];
+
+export interface AttemptTransition {
+  at: string;
+  state: AttemptState;
+  note?: string;
+}
+
+export interface Attempt {
+  id: string;
+  quoteId: string;
+  createdAt: string;
+  updatedAt: string;
+  state: AttemptState;
+  url: string;
+  serviceId?: string;
+  serviceName?: string;
+  terms: PaymentTerms;
+  /** The wallet's request id, once the wallet has been asked. */
+  walletRequestId?: string;
+  /** Where the owner approves this payment, when the signer serves a page for it. */
+  approvalUrl?: string;
+  /** Why it stopped: the wallet's reason, the seller's error, or the network failure. */
+  reason?: string;
+  payer?: string;
+  transaction?: string;
+  transactionUrl?: string;
+  serviceStatus?: number;
+  /** The service's response body, capped, once there is one. */
+  serviceBody?: string;
+  receiptId?: string;
+  history: AttemptTransition[];
+}
+
+// ── Receipt ──────────────────────────────────────────────────────────────────────────────
+
+export type ServiceOutcome = "ok" | "failed" | "unknown";
+
+export interface Receipt {
+  /** Same as the attempt id. */
+  id: string;
+  at: string;
+  quoteId: string;
+  attemptId: string;
+  url: string;
+  serviceId?: string;
+  serviceName?: string;
+  terms: PaymentTerms;
+  payer: string;
+  transaction: string;
+  transactionKind: "hash" | "pending";
+  transactionUrl: string;
+  network: string;
+  /** What the facilitator reported, verbatim minus nothing: success, payer, transaction, network. */
+  settlement: Pick<SettleResponse, "success" | "payer" | "transaction" | "network" | "errorReason">;
+  /** Payment success and service success are two different facts. */
+  serviceOutcome: ServiceOutcome;
+  serviceStatus?: number;
+  serviceBodyPreview?: string;
+  ms: number;
+}
+
+// ── Wallet wire types (daemon ⇄ client) ──────────────────────────────────────────────────
+
+/** What the agent says the payment is for. Displayed to the owner as unverified context. */
+export interface PaymentContext {
+  target: string;
+  serviceId?: string;
+  serviceName?: string;
+  description?: string;
+  quoteId?: string;
+  attemptId?: string;
+}
+
+export type WalletRequestStatus = "pending" | "approved" | "signed" | "denied" | "expired" | "rejected";
+
+/** The facts the wallet derived from the requirement it will sign. Never agent-supplied. */
+export interface VerifiedTerms extends PaymentTerms {
+  payer: string;
+}
+
+export interface WalletRequestView {
+  id: string;
+  status: WalletRequestStatus;
+  createdAt: number;
+  expiresAt: number;
+  verified: VerifiedTerms;
+  reported?: PaymentContext;
+  reason?: string;
+  /** Present only once signed; returned to the agent-token caller that created the request. */
+  result?: { kind: "eip3009"; payload: { signature: string; authorization: Record<string, unknown> }; signer: string };
+}
+
+export interface WalletStatus {
+  /** Which signer answered: the local wallet process, or a browser wallet on the approval page. */
+  mode?: "local" | "browser";
+  /** Who pays. A browser wallet has no address until someone has connected one. */
+  address?: string;
+  network: string;
+  networkLabel: string;
+  asset: string;
+  /** USDC balance on the wallet's network, when the RPC answered. */
+  balanceDecimal?: number;
+  approvalMode: "ask-every-payment";
+  pending: number;
+  policy: { perCall?: string; perDay?: string; allow: string[]; deny: string[]; stablecoins: string[]; killSwitch: boolean };
+}

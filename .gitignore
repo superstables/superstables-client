@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.mcpb
+.env
+.superstables/
+coverage/
+*.log
+.DS_Store
+build/
+scratch/

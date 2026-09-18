@@ -1,0 +1,41 @@
+{
+  "name": "@superstables/client",
+  "version": "0.1.0",
+  "description": "Superstables client: discover paid services, quote them, and pay from an owner-controlled wallet. CLI, local MCP server and SDK.",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/superstables/superstables-client.git" },
+  "homepage": "https://www.superstables.com",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "bin": { "superstables": "./dist/cli/main.js" },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+  },
+  "files": ["dist", "policy.example.yaml", "README.md", "CHANGELOG.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:live": "SUPERSTABLES_LIVE=1 vitest run test/live",
+    "dev": "tsx src/cli/main.ts",
+    "bundle": "node scripts/bundle.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@x402/core": "^2.25.0",
+    "@x402/evm": "^2.25.0",
+    "commander": "^14.0.0",
+    "viem": "^2.56.3",
+    "yaml": "^2.6.0",
+    "zod": "^4.6.1"
+  },
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "^2.1.2",
+    "@types/node": "^20.19.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
