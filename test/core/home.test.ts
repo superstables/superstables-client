@@ -28,6 +28,13 @@ describe("SUPERSTABLES_HOME", () => {
     expect(homeDir()).toBe(join(homedir(), ".superstables"));
   });
 
+  it("ignores a host's own unresolved placeholder", () => {
+    expect(expandHome("${user_config.home}")).toBeUndefined();
+    expect(expandHome("/${user_config.home}")).toBeUndefined();
+    process.env.SUPERSTABLES_HOME = "${user_config.home}";
+    expect(homeDir()).toBe(join(homedir(), ".superstables"));
+  });
+
   it("resolves the unexpanded placeholder a desktop host passed through", () => {
     process.env.SUPERSTABLES_HOME = "${HOME}/.superstables";
     expect(homeDir()).toBe(join(homedir(), ".superstables"));

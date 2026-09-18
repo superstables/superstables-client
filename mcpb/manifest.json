@@ -19,18 +19,11 @@
       "command": "node",
       "args": ["${__dirname}/dist/mcp/main.js"],
       "env": {
-        "SUPERSTABLES_HOME": "${user_config.home}",
         "SUPERSTABLES_WALLET_URL": "${user_config.wallet_url}"
       }
     }
   },
   "user_config": {
-    "home": {
-      "type": "directory",
-      "title": "Superstables home directory",
-      "description": "Where the policy, the local records and the wallet's own files live. Leave empty for ~/.superstables in your home directory.",
-      "required": false
-    },
     "wallet_url": {
       "type": "string",
       "title": "Wallet address (URL)",

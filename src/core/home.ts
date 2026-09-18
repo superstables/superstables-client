@@ -20,6 +20,9 @@ import { join, resolve } from "node:path";
 export function expandHome(value: string | undefined): string | undefined {
   const raw = (value ?? "").trim();
   if (raw === "") return undefined;
+  // A host that substitutes settings into env may leave its own placeholder behind when the
+  // setting is empty ("${user_config.home}"). That is not a path; it means "no setting".
+  if (/\$\{[^}]*\}/.test(raw.replace(/^\/?\$\{HOME\}/, ""))) return undefined;
   const home = homedir();
   const expanded = raw
     .replace(/^\/?\$\{HOME\}/, home)
@@ -68,7 +71,10 @@ export function approvalsPath(dir: string = recordsDir()): string {
 }
 
 export function walletUrl(): string {
-  return (process.env.SUPERSTABLES_WALLET_URL ?? `http://127.0.0.1:${DEFAULT_WALLET_PORT}`).replace(/\/$/, "");
+  const raw = (process.env.SUPERSTABLES_WALLET_URL ?? "").trim();
+  // Same host caveat as SUPERSTABLES_HOME: an unresolved "${...}" placeholder is not a URL.
+  const configured = raw !== "" && !/\$\{[^}]*\}/.test(raw) ? raw : `http://127.0.0.1:${DEFAULT_WALLET_PORT}`;
+  return configured.replace(/\/$/, "");
 }
 
 export function ensureDir(path: string): string {

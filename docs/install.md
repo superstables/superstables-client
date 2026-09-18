@@ -80,8 +80,8 @@ It compiles, stages the server with its runtime dependencies, validates the mani
 `build/superstables-<version>.mcpb`, printing the path and size.
 
 In Claude Desktop: **Settings → Extensions → Advanced → Install Extension…**, choose that file,
-and install it. The extension's settings let you set the home directory; the default is
-`~/.superstables`.
+and install it. The bundle keeps its state in `~/.superstables`; the only setting it exposes is
+the local wallet's URL, which matters only in `--wallet local` mode.
 
 The bundle contains the MCP server and nothing else, which in this mode is everything: the
 approval page is served by that same process.
