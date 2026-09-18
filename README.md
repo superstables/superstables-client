@@ -22,6 +22,19 @@ machine, and you sign in MetaMask.
 5. **Refuse.** Ask for a second call and press **Reject** — on the page, or in MetaMask.
    Nothing is signed, nothing is submitted, the service is not called, and the agent says so.
 
+## What it looks like
+
+The owner approves on a page the client serves on `127.0.0.1`. The amount, recipient and network on
+the left come from the seller's payment requirement; MetaMask shows the same `TransferWithAuthorization`
+it is about to sign on the right.
+
+![The approval page next to MetaMask's signature request](docs/images/2-approve.png)
+
+After the signature, the facilitator settles the transfer and the agent returns the service's answer
+with the transaction on the explorer.
+
+![The agent reporting the price paid for and the transaction link](docs/images/3-result.png)
+
 ## What this release supports
 
 | | |

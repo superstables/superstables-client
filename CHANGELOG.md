@@ -36,6 +36,24 @@ money moves.
 - **Refuse.** A rejected payment — on the page or in MetaMask's own popup — signs nothing,
   submits nothing, and never calls the service. The agent is told so plainly.
 
+### In pictures
+
+Installing the Claude Desktop bundle and running `superstables setup`:
+
+![Install](https://raw.githubusercontent.com/superstables/superstables-client/main/docs/images/0-install.png)
+
+Claude Desktop asking permission before the agent uses a tool:
+
+![Tool permissions](https://raw.githubusercontent.com/superstables/superstables-client/main/docs/images/1-permissions.png)
+
+The approval page next to MetaMask's signature request, both showing the same payment:
+
+![Approve in MetaMask](https://raw.githubusercontent.com/superstables/superstables-client/main/docs/images/2-approve.png)
+
+The agent returning the service's answer and the transaction link:
+
+![The result](https://raw.githubusercontent.com/superstables/superstables-client/main/docs/images/3-result.png)
+
 ### What is supported
 
 x402 with the `exact` scheme, on Base Sepolia (`eip155:84532`), paying in USDC. Any other
