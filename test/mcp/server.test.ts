@@ -286,22 +286,34 @@ describe("the Superstables MCP server", () => {
     expect(facilitator.calls.settle).toBe(1);
   });
 
-  it("reports the running wallet", async () => {
-    const status = structured<{ running: boolean; address?: string; approval_mode?: string }>(
-      await call("wallet_status", {}),
-    );
+  it("reports the running wallet, and which build answered", async () => {
+    const status = structured<{
+      running: boolean;
+      address?: string;
+      approval_mode?: string;
+      client_version?: string;
+      home?: string;
+    }>(await call("wallet_status", {}));
     expect(status.running).toBe(true);
     expect(status.address).toBe(wallet.address);
     expect(status.approval_mode).toBe("ask-every-payment");
+    // So nobody has to guess which copy of the server a host is running, or where it writes.
+    expect(status.client_version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(status.home).toBe(home);
   });
 
   it("says what to do when the wallet is not running, and pays nothing", async () => {
     const quoted = await quoteBtc();
     await wallet.close();
 
-    const status = structured<{ running: boolean; hint?: string }>(await call("wallet_status", {}));
+    const status = structured<{ running: boolean; hint?: string; client_version?: string; home?: string }>(
+      await call("wallet_status", {}),
+    );
     expect(status.running).toBe(false);
     expect(status.hint).toContain("superstables wallet serve");
+    // A wallet that is not answering is exactly when someone needs to know which build asked.
+    expect(status.client_version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(status.home).toBe(home);
 
     const started = structured<AttemptAnswer>(await call("pay", { quote_id: quoted.quote_id }));
     const failed = FINAL_ATTEMPT_STATES.includes(started.state) ? started : await waitForFinal(started.attempt_id);

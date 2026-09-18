@@ -17,7 +17,6 @@
 // approve in their own wallet — in a browser wallet on the approval page, or in the local
 // wallet process — and this file only asks.
 
-import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { FINAL_ATTEMPT_STATES } from "../core/types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
@@ -25,10 +24,12 @@ import { z } from "zod";
 import { findServices as findServicesImpl, getService as getServiceImpl } from "../core/discovery.js";
 import { PaymentEngine, SERVICE_BODY_LIMIT } from "../core/pay.js";
 import type { Policy } from "../core/policy.js";
+import { homeDir } from "../core/home.js";
 import { quote as takeQuote } from "../core/quote.js";
 import { Records } from "../core/records.js";
 import type { Signer } from "../core/signer/types.js";
 import type { Attempt, Receipt, WalletStatus } from "../core/types.js";
+import { clientVersion } from "../core/version.js";
 
 /** How long a `pay` or `payment_status` call waits for the owner before answering anyway. */
 export const DEFAULT_WAIT_MS = 20_000;
@@ -75,7 +76,7 @@ Everything here is a testnet: Base Sepolia, test USDC, no real money.`;
 
 export function createSuperstablesServer(deps: SuperstablesServerDeps): McpServer {
   const server = new McpServer(
-    { name: "superstables", version: packageVersion() },
+    { name: "superstables", version: clientVersion() },
     { instructions: INSTRUCTIONS },
   );
   const waitMs = waitMsFor(deps);
@@ -214,15 +215,22 @@ export function createSuperstablesServer(deps: SuperstablesServerDeps): McpServe
       title: "Wallet status",
       description:
         "Is the owner's wallet running, which address pays, and what does its policy allow? " +
+        "Also reports which build of this client answered and which home directory it uses. " +
         "Check this before quoting if a payment is likely.",
       inputSchema: {},
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     async () => {
+      // Which build answered, and where it keeps its state: on every branch below, including
+      // the failures. A host that quietly kept an older copy of this server is otherwise
+      // indistinguishable from one running the build that was just installed, and the person
+      // asking "is my wallet there?" is exactly the person who needs to know.
+      const build = { client_version: clientVersion(), home: homeDir() };
       try {
         const status = await deps.signer.status();
         return answer({
           running: true,
+          ...build,
           ...(status.mode ? { mode: status.mode } : {}),
           address: status.address,
           network: status.network,
@@ -237,10 +245,10 @@ export function createSuperstablesServer(deps: SuperstablesServerDeps): McpServe
         // In browser mode there is nothing to start, so "not running" would be a lie: the
         // approval page is this process, and it binds when the first payment needs it.
         if (deps.signer.kind === "browser") {
-          return answer({ running: true, mode: "browser", hint: BROWSER_HINT });
+          return answer({ running: true, ...build, mode: "browser", hint: BROWSER_HINT });
         }
         // A wallet that will not talk to us is not an error to report: it is a thing to fix.
-        return answer({ running: false, hint: WALLET_HINT });
+        return answer({ running: false, ...build, hint: WALLET_HINT });
       }
     },
   );
@@ -412,14 +420,4 @@ function waitMsFor(deps: SuperstablesServerDeps): number {
   if (typeof deps.waitMs === "number" && Number.isFinite(deps.waitMs) && deps.waitMs >= 0) return deps.waitMs;
   const fromEnv = Number(process.env.SUPERSTABLES_MCP_WAIT_MS);
   return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : DEFAULT_WAIT_MS;
-}
-
-/** The package version, so a client can tell two builds of this server apart. */
-function packageVersion(): string {
-  try {
-    const text = readFileSync(new URL("../../package.json", import.meta.url), "utf8");
-    return (JSON.parse(text) as { version?: string }).version ?? "0.0.0";
-  } catch {
-    return "0.0.0";
-  }
 }

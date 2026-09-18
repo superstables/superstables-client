@@ -2,6 +2,11 @@
 // Builds the Claude Desktop bundle: a single .mcpb file holding the MCP server, its compiled
 // JavaScript and its production dependencies.
 //
+// `--dev` stamps the staged manifest and package.json with a version derived from the commit
+// (`0.1.0-dev.14+gabc1234`), so that two development builds of the same release are never
+// called the same thing and a desktop host cannot silently keep an older one. The repository's
+// own files are never touched; only the staged copies, which are what ships.
+//
 // The bundle is staged rather than packed in place, for one reason: what ships must be exactly
 // what the manifest promises. The staging directory gets the manifest, a package.json stripped
 // down to runtime dependencies, dist/, the README and the licence — and then its own
@@ -13,12 +18,18 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { devVersion, revisionOf } from "./dev-version.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const buildDir = join(root, "build");
 const stageDir = join(buildDir, "mcpb");
 
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+
+// The version everything staged below carries. Without --dev it is the released one, unchanged.
+const dev = process.argv.slice(2).includes("--dev");
+const version = dev ? devVersion(pkg.version, revisionOf(root)) : pkg.version;
+if (dev) console.log(`Development build: ${version} (the repository's own files are left alone)`);
 
 /** Runs a command, letting its output through, and fails the script if it fails. */
 function run(command, args, cwd = root) {
@@ -42,7 +53,7 @@ mkdirSync(stageDir, { recursive: true });
 
 // The manifest is the source of truth for everything but the version, which belongs to package.json.
 const manifest = JSON.parse(readFileSync(join(root, "mcpb", "manifest.json"), "utf8"));
-manifest.version = pkg.version;
+manifest.version = version;
 writeFileSync(join(stageDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 
 // A package.json with dependencies and nothing else: this copy exists so `npm install` can
@@ -52,7 +63,9 @@ writeFileSync(
   `${JSON.stringify(
     {
       name: pkg.name,
-      version: pkg.version,
+      // What `clientVersion()` reads at run time: the staged copy is the package.json that
+      // ships inside the bundle, so a stamped build reports itself as one.
+      version,
       description: pkg.description,
       license: pkg.license,
       type: pkg.type,
@@ -78,7 +91,7 @@ run("npm", ["install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fun
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 run(npx, ["mcpb", "validate", join(stageDir, "manifest.json")]);
 
-const output = join(buildDir, `superstables-${pkg.version}.mcpb`);
+const output = join(buildDir, `superstables-${version}.mcpb`);
 rmSync(output, { force: true });
 run(npx, ["mcpb", "pack", stageDir, output]);
 

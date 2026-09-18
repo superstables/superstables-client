@@ -40,6 +40,9 @@ directory and policy are in place, which account last connected, and that the ap
 free:
 
 ```
+  client version           0.1.0
+  home                     ~/.superstables
+
 ✓ home directory           ~/.superstables (writable)
 ✓ spend policy             ~/.superstables/policy.yaml: up to 0.05 USDC per payment, 1 USDC per day
 ✓ browser wallet           no account connected yet: MetaMask connects when the first approval link opens
@@ -89,6 +92,43 @@ approval page is served by that same process.
 Both Claude Code and Claude Desktop have been tested end to end with the MetaMask flow: find,
 quote, approve, pay, receipt, and a rejected payment that signs nothing.
 
+### Updating the extension
+
+Claude Desktop may keep the copy of an extension it already has when the new one carries the
+same version number. The old build then runs, looks installed, and behaves like the old build.
+Install a new `.mcpb` like this, and the question does not arise:
+
+1. Quit Claude Desktop completely — **Cmd+Q** on a Mac. Closing the window is not enough; the
+   old server keeps running.
+2. Reopen it, go to **Settings → Extensions**, and uninstall the Superstables extension that is
+   there.
+3. Install the new `.mcpb`: **Advanced → Install Extension…**.
+4. Check that the version Claude Desktop shows for the extension is the version in the filename
+   of the bundle you just built.
+5. Open a **new** chat and ask for the wallet status. The answer carries `client_version` and
+   `home`: the first must be the version you installed, the second the directory you expect
+   (`~/.superstables` unless you changed it). An older version there means an older build is
+   still running — go back to step 1.
+
+While developing, build with:
+
+```bash
+npm run bundle -- --dev
+```
+
+Every build then gets a version of its own, derived from the commit:
+`build/superstables-0.1.0-dev.14+gabc1234.mcpb`. The host cannot mistake it for the copy it
+already has, and `client_version` names the exact commit the running server was built from.
+Without `--dev` the bundle carries the released version, unchanged. Neither form writes to the
+repository's own `package.json` or `mcpb/manifest.json`; only the staged copies inside the
+bundle are stamped.
+
+Two other places answer the same question: `superstables --version` and `superstables doctor`,
+which prints the client version and the home directory above its checks. The MCP server also
+writes one line to stderr when it starts —
+`superstables client 0.1.0 · home /Users/you/.superstables · wallet browser` — which is what
+Claude Desktop shows in the extension's logs.
+
 Releases are tagged `v<version>` on GitHub, with the release notes taken from
 [../CHANGELOG.md](../CHANGELOG.md) and the `.mcpb` bundle attached, so a tagged release can be
 installed without building it.
@@ -101,8 +141,12 @@ The server speaks MCP over stdio. Run it as:
 node dist/mcp/main.js      # or: npx superstables mcp
 ```
 
-It logs to stderr only, because stdout is the protocol. Its first line says which signer it is
-using.
+It logs to stderr only, because stdout is the protocol. Its first line says which build is
+running, where its state lives and which signer it is using:
+
+```
+superstables client 0.1.0 · home /Users/you/.superstables · wallet browser
+```
 
 ## The paid service
 

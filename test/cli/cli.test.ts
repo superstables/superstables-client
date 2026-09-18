@@ -7,7 +7,7 @@
 // checks, and the wallet URL points at a port nothing is listening on.
 
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
@@ -56,6 +56,15 @@ function run(args: string[], env: Record<string, string> = {}): Promise<Run> {
 }
 
 describe("the superstables CLI", () => {
+  it("prints the version of the build that is running", async () => {
+    // The shortest answer to "which build is this?", and the one a person reaches for after
+    // installing over an older copy.
+    const result = await run(["--version"]);
+    expect(result.code).toBe(0);
+    const { version } = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8")) as { version: string };
+    expect(result.stdout.trim()).toBe(version);
+  });
+
   it("prints its own help", async () => {
     const result = await run(["--help"]);
     expect(result.code).toBe(0);
@@ -127,6 +136,13 @@ describe("the superstables CLI", () => {
 
     const result = await run(["--wallet", "local", "doctor"]);
     expect(result.code).toBe(0);
+    // Which build, and which directory, before any check: a report without them cannot be read.
+    const { version } = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8")) as { version: string };
+    const [first, second] = result.stdout.split("\n");
+    expect(first).toContain("client version");
+    expect(first).toContain(version);
+    expect(second).toContain("home");
+    expect(second).toContain(home);
     expect(result.stdout).toContain("✓ wallet key");
     expect(result.stdout).toContain("✗ wallet");
     expect(result.stdout).toContain("superstables wallet serve");
@@ -146,10 +162,14 @@ describe("the superstables CLI", () => {
     const report = JSON.parse(result.stdout) as {
       ok: boolean;
       mode: string;
+      version: string;
+      home: string;
       checks: { name: string; ok: boolean; detail: string }[];
     };
     expect(report.mode).toBe("browser");
     expect(report.ok).toBe(true);
+    expect(report.home).toBe(home);
+    expect(report.version).toMatch(/^\d+\.\d+\.\d+/);
     const by = (name: string) => report.checks.find((check) => check.name === name);
     expect(by("wallet key")).toBeUndefined();
     expect(by("browser wallet")?.detail).toContain("MetaMask connects when the first approval link opens");

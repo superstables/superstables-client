@@ -30,6 +30,7 @@ import {
   walletUrl,
 } from "../core/home.js";
 import { loadPolicy } from "../core/policy.js";
+import { clientVersion } from "../core/version.js";
 import { walletStatus } from "../core/signer/wallet.js";
 import type { WalletMode } from "../mcp/main.js";
 import { walletModeFromEnvironment } from "../mcp/main.js";
@@ -56,6 +57,10 @@ export interface DoctorReport {
   offline: boolean;
   /** Which wallet the checks were run for. */
   mode: WalletMode;
+  /** Which build ran the checks. The first thing to compare when two machines disagree. */
+  version: string;
+  /** The directory every check below is about. */
+  home: string;
 }
 
 export function doctorIsOffline(): boolean {
@@ -77,14 +82,30 @@ export async function runDoctor(mode: WalletMode = walletModeFromEnvironment()):
     checks.push(await demoServiceCheck(), await indexCheck(), ...(await facilitatorChecks()));
   }
 
-  return { checks, ok: checks.every((check) => !check.essential || check.ok), offline, mode };
+  return {
+    checks,
+    ok: checks.every((check) => !check.essential || check.ok),
+    offline,
+    mode,
+    version: clientVersion(),
+    home: homeDir(),
+  };
 }
 
 export function formatReport(report: DoctorReport): string {
-  const lines = report.checks.map((check) => {
+  const checkLines = report.checks.map((check) => {
     const mark = check.skipped ? "-" : check.ok ? "✓" : "✗";
     return `${mark} ${check.name.padEnd(24)} ${check.detail}`;
   });
+  // Which build, and which directory, before any check: a report pasted into a bug report is
+  // worth little if nobody can tell which build produced it, and a machine that was installed
+  // over twice can have an older server answering from a home nobody expected.
+  const lines = [
+    `  ${"client version".padEnd(24)} ${report.version}`,
+    `  ${"home".padEnd(24)} ${report.home}`,
+    "",
+    ...checkLines,
+  ];
   lines.push("");
   lines.push(
     report.ok

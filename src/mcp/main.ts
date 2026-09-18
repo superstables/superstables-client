@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { findServices, getService } from "../core/discovery.js";
-import { DEFAULT_APPROVE_PORT, policyPath, recordsDir } from "../core/home.js";
+import { DEFAULT_APPROVE_PORT, homeDir, policyPath, recordsDir } from "../core/home.js";
 import { PaymentEngine } from "../core/pay.js";
 import { loadPolicy } from "../core/policy.js";
 import { Records } from "../core/records.js";
@@ -18,6 +18,7 @@ import { BrowserWalletSigner } from "../core/signer/browser.js";
 import type { Signer } from "../core/signer/types.js";
 import { WalletSigner } from "../core/signer/wallet.js";
 import type { WalletStatus } from "../core/types.js";
+import { clientVersion } from "../core/version.js";
 import { createSuperstablesServer } from "./server.js";
 
 /** Which signer asks the owner. Browser by default: it needs no process of the owner's own. */
@@ -64,9 +65,11 @@ export async function runStdioServer(): Promise<void> {
   }
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  // One line, on stderr, saying which build just started and where it will keep its state.
+  // A host that kept an older copy of this server around says so here, in its own log, before
+  // anybody has to ask a tool — and stdout stays the protocol's alone.
   console.error(
-    `superstables MCP server ready on stdio (Base Sepolia testnet, no real money; ` +
-      `${walletModeFromEnvironment() === "local" ? "local wallet process" : "browser wallet on the approval page"})`,
+    `superstables client ${clientVersion()} · home ${homeDir()} · wallet ${walletModeFromEnvironment()}`,
   );
   await new Promise<void>((resolve) => {
     const done = () => resolve();

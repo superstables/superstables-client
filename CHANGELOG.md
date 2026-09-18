@@ -69,13 +69,17 @@ Six MCP tools over stdio, for Claude Code, Claude Desktop or any other MCP clien
 - `pay` — ask the owner to approve a quote, return the `approval_url`, then pay and return the
   service's answer
 - `payment_status` — wait for an attempt to finish and report where it got to
-- `wallet_status` — which signer is in use, and its address, network, balance and policy
+- `wallet_status` — which signer is in use, and its address, network, balance and policy, plus
+  the `client_version` and `home` of the server that answered, so a host running an older build
+  than the one just installed can be told apart from one running the new one
 - `list_receipts` — the payments that settled on this machine
 
 The `superstables` CLI does the same work from a terminal: `setup`, `doctor`, `find`, `quote`,
 `pay`, `status`, `receipts`, `attempts`, `policy show` / `policy init`, `mcp`, `demo-service`,
-and `wallet init` / `wallet serve` / `wallet status` for the local wallet. The same code is
-published as a TypeScript SDK.
+and `wallet init` / `wallet serve` / `wallet status` for the local wallet. `superstables
+--version` prints the version of the build that is running, `doctor` prints it and the home
+directory above its checks, and the MCP server logs the same three facts to stderr on start.
+The same code is published as a TypeScript SDK.
 
 ### Records and state
 
@@ -102,6 +106,12 @@ for anyone who wants to watch that side of a payment.
 `npm run bundle` builds `build/superstables-<version>.mcpb`, an MCP bundle that installs into
 Claude Desktop through Settings → Extensions → Advanced → Install Extension…. Both Claude Code
 and Claude Desktop have been tested end to end with the MetaMask flow.
+
+`npm run bundle -- --dev` stamps the staged bundle — never the repository's own files — with a
+version derived from the commit, for example `0.1.0-dev.14+gabc1234`, so that two development
+builds of the same release are never called the same thing and a host cannot silently keep the
+copy it already has. [docs/install.md](docs/install.md) says how to update an installed
+extension and how to confirm which build is running.
 
 ### Known limitations
 

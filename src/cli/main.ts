@@ -30,6 +30,7 @@ import { Records } from "../core/records.js";
 import type { Signer } from "../core/signer/types.js";
 import { walletStatus } from "../core/signer/wallet.js";
 import type { Attempt, Quote, ServiceListing, WalletStatus } from "../core/types.js";
+import { clientVersion } from "../core/version.js";
 import { startDemoService } from "../demo-service/server.js";
 import { runStdioServer, signerFor, walletModeFromEnvironment, type WalletMode } from "../mcp/main.js";
 import { messageFor } from "../mcp/server.js";
@@ -45,6 +46,9 @@ const program = new Command();
 
 program
   .name("superstables")
+  // `superstables --version` is the shortest answer to "which build is this?", and the one a
+  // person reaches for when a machine has been installed over more than once.
+  .version(clientVersion(), "-V, --version", "print the version of this client and exit")
   .description(
     "Discover paid services, quote them, and pay them with test USDC from a wallet you control. " +
       "Base Sepolia testnet only: no real money moves.",
