@@ -1,26 +1,33 @@
 # Superstables client
 
-An agent finds a service that charges per request, asks it what a call costs, and pays for it —
-but only after you have looked at the amount, the asset, the network and the recipient and said
-yes. The key is in MetaMask, where it already was; the agent can ask for a payment and can never
-approve one. This release is a testnet demonstration: it pays in test USDC on Base Sepolia over
-[x402](https://x402.org), so no real money moves.
+**Payments belong in the agent workflow.**
 
-You run nothing. The agent starts the client, the client serves one approval page on your own
-machine, and you sign in MetaMask.
+Superstables connects service discovery, pricing and payment for AI agents. The client lets an
+agent find a paid service, retrieve its payment terms and request your approval. Once you sign
+in MetaMask, the client sends the signed request and records the payment outcome and the
+service's response.
+
+This is a testnet demo using [x402](https://x402.org) with the `exact` scheme and test USDC on
+Base Sepolia. The client is available through MCP, a CLI and a TypeScript SDK. Each payment
+requires your approval. There is no mainnet support or unattended mode.
+
+After setup, the agent starts the client and its local approval page. In the default MetaMask
+flow, your signing key remains in your wallet. The agent can request a payment, but it cannot
+approve one.
 
 ## What the demo shows
 
-1. **Find.** The agent lists services it could pay for, and says which ones it can actually call.
-2. **Quote.** It reads the service's HTTP 402 challenge and writes down the exact terms. Free,
-   and nothing is signed.
-3. **Approve.** The agent hands you a link. The page shows *0.01 USDC, to `0x…`, on Base
-   Sepolia* — facts it derived from the seller's own payment requirement, not from the agent —
-   and MetaMask shows you the same transfer before you sign it.
-4. **Pay.** You sign. A public facilitator submits the transfer and pays the gas, the service
-   answers, and a receipt is written with the transaction hash.
-5. **Refuse.** Ask for a second call and press **Reject** — on the page, or in MetaMask.
-   Nothing is signed, nothing is submitted, the service is not called, and the agent says so.
+1. **Find.** The agent lists paid services and identifies which ones this client can call.
+2. **Quote.** The client reads the service's HTTP 402 challenge and records its payment terms.
+   No payment is made and nothing is signed.
+3. **Approve.** You open the local approval page and review the amount, asset, network and
+   recipient. These details come from the seller's payment requirement. Check the same
+   transfer in MetaMask before signing.
+4. **Pay.** A public facilitator submits the signed transfer and covers the gas. The client
+   returns the service's response and records a receipt with the transaction details.
+5. **Reject.** Reject a request on the approval page or in MetaMask before signing. No
+   signature is produced, no payment is submitted, and the paid service request is not sent.
+   The agent reports the rejection.
 
 ## What it looks like
 
@@ -41,18 +48,18 @@ with the transaction on the explorer.
 | --- | --- |
 | Rail | x402, `exact` scheme |
 | Network | Base Sepolia testnet (`eip155:84532`) |
-| Asset | USDC (`0x036CbD53842c5426634e7929541eC2318f3dCF7e`, 6 decimals) |
+| Asset | Test USDC (`0x036CbD53842c5426634e7929541eC2318f3dCF7e`, 6 decimals) |
 | Approval | MetaMask signs each payment, on an approval page the client serves on `127.0.0.1`. There is no unattended mode |
 | Alternative | A local wallet process that holds a key in a file, for a browser-free machine: `--wallet local` |
-| Clients | Claude Code and Claude Desktop, both tested end to end with the MetaMask flow (any MCP client that speaks stdio) |
+| Clients | Claude Code and Claude Desktop, tested end to end with the MetaMask flow. The server uses MCP over stdio |
 | Also usable as | a CLI (`superstables`) and a TypeScript SDK |
 
-Anything else — another scheme, another network, another asset, mainnet — is refused before you
-are asked.
+Unsupported payment schemes, networks and assets are rejected before approval. This includes
+mainnet.
 
 ## Quick start
 
-You need Node 20 or newer, and MetaMask in your browser.
+You need Node 20 or newer and MetaMask in your browser.
 
 ```bash
 git clone https://github.com/superstables/superstables-client.git
@@ -62,8 +69,8 @@ npm run build
 npx superstables setup
 ```
 
-`setup` creates `~/.superstables`, writes a starting `policy.yaml`, and prints the steps below
-with the paths already filled in. It creates no key: there is none to create.
+`setup` creates `~/.superstables`, writes a starting `policy.yaml`, and prints the connection
+steps with your local paths. In the default MetaMask mode, it does not create a signing key.
 
 **Connect an agent.** Claude Code:
 
@@ -74,10 +81,10 @@ claude mcp add superstables -- node "$(pwd)/dist/mcp/main.js"
 Claude Desktop: `npm run bundle`, then Settings → Extensions → Advanced → Install Extension…
 and choose `build/superstables-<version>.mcpb`.
 
-**Get MetaMask ready.** Install it from <https://metamask.io/download> if you have not. Add
-Base Sepolia — the approval page offers to do it for you the first time you connect — and send
-test USDC to your MetaMask address from <https://faucet.circle.com>. No ETH is needed:
-facilitators pay the gas.
+**Get MetaMask ready.** Install it from <https://metamask.io/download> if needed. Add Base
+Sepolia, or accept the approval page's network prompt when you first connect. Fund your
+MetaMask address with test USDC from <https://faucet.circle.com>. You do not need ETH for this
+demo flow because the facilitator covers the gas.
 
 **Talk to the agent**, in your own words:
 
@@ -88,10 +95,9 @@ it. Press **Connect wallet**, then **Approve in MetaMask**, and check the recipi
 amount in MetaMask's popup before you sign. The agent reports the transaction and the data it
 paid for.
 
-There is nothing else to start: the demo seller is hosted by Superstables at
-`https://www.superstables.com/api/demo/market`, so the built-in catalogue already has something
-to buy. Running that seller yourself is optional — see
-[Run the seller yourself](#run-the-seller-yourself).
+The built-in catalogue points to the demo seller hosted by Superstables at
+`https://www.superstables.com/api/demo/market`. You do not need to start a separate seller.
+To run it locally, see [Run the seller yourself](#run-the-seller-yourself).
 
 Full details, including every environment variable, are in [docs/install.md](docs/install.md).
 The presenter's script is in [docs/demo.md](docs/demo.md). What changed in each release is in
@@ -109,10 +115,10 @@ anywhere. Two options go before the command: `--home <dir>` puts all state somew
 | `setup` | Create the home directory and the policy, and print what to do next |
 | `doctor` | Check everything a payment needs and print ✓/✗ per item |
 | `find [query]` | List services that can be paid for (`--limit`, `--all`) |
-| `quote <url>` / `quote --service <id> --param k=v` | Ask what a call costs. Pays nothing |
+| `quote <url>` / `quote --service <id> --param k=v` | Retrieve payment terms without signing or paying |
 | `pay <quote-id>` | Pay a quote, printing the approval link and each state as it happens (`--wait`) |
-| `status <attempt-id>` | Where a payment attempt got to |
-| `receipts` / `attempts` | What was paid, and what was tried (`--limit`) |
+| `status <attempt-id>` | Show the state of a payment attempt |
+| `receipts` / `attempts` | List payment receipts or attempts (`--limit`) |
 | `policy show` / `policy init` | Read or create `policy.yaml` |
 | `mcp` | Run the MCP server on stdio, the same one Claude talks to |
 | `demo-service` | Run the paid service yourself (`--port`, `--pay-to`, `--price`) |
@@ -125,13 +131,13 @@ anywhere. Two options go before the command: `--home <dir>` puts all state somew
 | `find_services` | Search for payable services and say which are actionable |
 | `quote` | Read a service's terms and record them. Nothing is signed |
 | `pay` | Ask you to approve a quote, returning `approval_url`; then pay it and return the service's answer |
-| `payment_status` | Wait for an attempt to finish and report where it got to |
+| `payment_status` | Wait for a payment attempt and report its state |
 | `wallet_status` | Which signer is in use; address, network, balance, policy |
 | `list_receipts` | Payments that settled on this machine |
 
-Only `pay` can move money, and it cannot approve itself: it stops at `awaiting_approval` and
-hands back an `approval_url`. The agent is told to show you that link exactly as written — it is
-the only way to reach the payment, and a paraphrased link does not open.
+Of these tools, only `pay` can initiate a payment. It returns an `approval_url` and waits in
+`awaiting_approval` for your decision. The agent must show the complete link unchanged so you
+can open the correct payment request.
 
 ## Where state lives
 
@@ -143,65 +149,65 @@ the only way to reach the payment, and a paraphrased link does not open.
   wallet/                only with --wallet local: key, agent token, owner secret, audit log
 ```
 
-`SUPERSTABLES_HOME` moves all of it. Nothing outside this directory is written.
+`SUPERSTABLES_HOME` changes the base directory for this state.
 
 ## What is enforced, and by what
 
-**By the chain:** the amount, the asset and the recipient inside the signed authorization, and
-the balance of the account. A facilitator cannot change any of them.
+**Blockchain.** Settlement checks the signed payment authorization and the account's balance.
+The amount, asset and recipient are part of the authorization. A facilitator cannot change
+those signed terms.
 
-**By MetaMask:** that nothing is signed without you, and that what you sign is what you were
-shown. The typed data in the popup carries the real `to` and `value`; MetaMask renders them
-from the request itself, not from anything this software says about it. The key never exists in
-this software — there is no file to steal on this machine, in browser mode.
+**MetaMask.** You review and sign the authorization in your wallet. MetaMask displays the
+`to` address and `value` from the signing request. In browser mode, the client does not
+generate, read or store your private key.
 
-**By the approval page:** that the payment described to you is the payment that gets signed. The
-page's facts — amount, asset, network, recipient — are derived from the seller's requirement by
-the same code the payment core uses. What the agent says the payment is *for* is shown
-separately, under "Reported by the agent (not verified)", and changes nothing about what is
-signed. The signature that comes back is verified to recover the account that connected, before
-it is used.
+**Approval page.** The page derives the amount, asset, network and recipient from the seller's
+payment requirement using the same code as the payment core. It shows the agent's description
+separately under "Reported by the agent (not verified)". That description does not change the
+signed payment terms. Before using a returned signature, the client checks that it matches the
+connected account.
 
-**By software only:** `policy.yaml` — the per-payment cap, the daily cap, the allowed hosts, the
-kill switch. These are checks in this code, running on your machine, counted from local files.
-They are not on-chain limits, and they are not MetaMask's. They mean this software will not ask
-you to sign more than that.
+**Local policy.** `policy.yaml` defines per-payment and daily caps, host rules and a kill
+switch. The client applies these checks using local records. They are software checks, not
+limits enforced by the blockchain or MetaMask. Host rules use the URL reported by the agent,
+so they cannot protect against an agent that misreports it.
 
-[docs/security.md](docs/security.md) is the long version, including what a compromised agent
-can and cannot do.
+See [docs/security.md](docs/security.md) for the full security model, including the limits of
+local policy and what a compromised agent or client process could do.
 
 ## Limitations
 
-- Testnet only. One network, one asset, one scheme. No mainnet switch exists.
-- **MetaMask's popup shows the value in USDC's smallest unit**: `10000` is 0.01 USDC. The
-  approval page says so next to the amount, but the popup is what it is, and reading it takes a
-  moment's care.
-- The approval link is the capability: anyone who has it can open that one payment. It only
-  ever signs that one request, it expires in five minutes, and signing still needs your
-  MetaMask. It stays on `127.0.0.1`, so nobody off this machine can open it at all.
-- One approval per payment. No budgets, no unattended spending.
-- With `--wallet local` the key is a file on this machine, and any process running as you can
-  read it. That mode exists for a machine with no browser.
-- The public index lists services whose request parameters it does not yet record, so most
-  listings can be shown but not called. They say so.
-- An interrupted payment can end `uncertain`; it is never retried automatically.
-  [docs/records.md](docs/records.md) says what to do.
+- Testnet only: Base Sepolia, test USDC and the x402 `exact` scheme. There is no mainnet mode.
+- MetaMask displays the amount in USDC's smallest unit: `10000` represents 0.01 USDC. The
+  approval page shows the conversion. Check the amount and recipient in MetaMask before signing.
+- In browser mode, an approval link opens one payment request and expires after five minutes.
+  The page is served on `127.0.0.1`, and signing still requires MetaMask. Treat the link as
+  access to that request.
+- Each payment requires approval. Delegated budgets and unattended payments are not supported.
+- With `--wallet local`, the signing key is stored in a file that any process running as your
+  user can read. This mode is intended for machines without a browser.
+- Public-index listings without the required request parameters can be displayed but cannot be
+  called by this release. The client identifies these listings.
+- An interrupted payment can end in `uncertain` and is never retried automatically. See
+  [docs/records.md](docs/records.md) for the checks to make before trying again.
+- A receipt records payment and service outcomes separately. A settled payment does not
+  guarantee a successful service response. If the facilitator has not returned a transaction
+  hash, the receipt records its pending reference instead.
 
 ## Run the seller yourself
 
-You do not have to: the built-in listing points at the demo seller Superstables hosts, and the
-catalogue also lists a third-party x402 service that somebody else runs. But the seller is in
-this repository, and running it is the way to watch the other side of a payment — the 402, the
-facilitator, the one log line per paid call:
+The catalogue includes the hosted Superstables demo seller and a third-party x402 service.
+To inspect the seller side of the flow, run the demo seller from this repository. You can
+observe its HTTP 402 response, facilitator interaction and log entry for each paid call:
 
 ```bash
 npx superstables demo-service --pay-to 0xYourSellerAddress
 SUPERSTABLES_DEMO_SERVICE_URL="http://127.0.0.1:4402/v1/market" npx superstables find
 ```
 
-Pay it to an address you control; test funds sent to a random address are gone.
-`SUPERSTABLES_DEMO_SERVICE_URL` is what points the client — discovery, the CLI and the MCP
-server — at an instance other than the hosted one.
+Set `--pay-to` to an address you control. Test funds sent to an address you do not control
+cannot be recovered by this client. `SUPERSTABLES_DEMO_SERVICE_URL` points discovery, the CLI
+and the MCP server at your seller instance.
 
 ## A local wallet instead of MetaMask
 
@@ -214,10 +220,10 @@ npx superstables --wallet local setup        # creates the key, prints the addre
 npx superstables --wallet local wallet serve # leave it running
 ```
 
-`SUPERSTABLES_WALLET=local` does the same for the MCP server, which is how you would set it for
-Claude. Everything else is identical: the agent asks, a human approves, and the same records are
-written. The trade is plain — a key in a file on the machine the agent runs on, instead of a key
-in MetaMask.
+Set `SUPERSTABLES_WALLET=local` when starting the MCP server to select this mode for Claude.
+The agent requests a payment, you approve it through the wallet's approval page, and the client
+writes the same types of payment records. The signing key is stored on the local machine
+rather than in MetaMask, so processes running as your user can read it.
 
 ## Development
 
