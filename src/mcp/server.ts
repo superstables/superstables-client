@@ -21,7 +21,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { FINAL_ATTEMPT_STATES } from "../core/types.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { findServices as findServicesImpl, getService as getServiceImpl } from "../core/discovery.js";
+import { demoServicesEnabled, findServices as findServicesImpl, getService as getServiceImpl } from "../core/discovery.js";
 import { PaymentEngine, SERVICE_BODY_LIMIT } from "../core/pay.js";
 import type { Policy } from "../core/policy.js";
 import { homeDir } from "../core/home.js";
@@ -89,7 +89,9 @@ export function createSuperstablesServer(deps: SuperstablesServerDeps): McpServe
       title: "Find paid services",
       description:
         "Search for services that can be paid for per request. Returns what each one costs, " +
-        "on which network, and whether this client can actually call and pay it.",
+        "on which network, and whether this client can actually call and pay it. Simulated demo " +
+        "services (mock: true, prepared answers) are included only when demo services are switched " +
+        "on for this server, and always after the real sellers.",
       inputSchema: {
         query: z.string().optional().describe("What to look for, in plain words. Omit to list everything."),
         limit: z.number().int().min(1).max(25).default(10).describe("How many services to return."),
@@ -225,7 +227,7 @@ export function createSuperstablesServer(deps: SuperstablesServerDeps): McpServe
       // the failures. A host that quietly kept an older copy of this server is otherwise
       // indistinguishable from one running the build that was just installed, and the person
       // asking "is my wallet there?" is exactly the person who needs to know.
-      const build = { client_version: clientVersion(), home: homeDir() };
+      const build = { client_version: clientVersion(), home: homeDir(), demo_services: demoServicesEnabled() };
       try {
         const status = await deps.signer.status();
         return answer({

@@ -14,6 +14,13 @@ npm install && npm run build
 npx superstables setup
 ```
 
+Connect the agent with the demo services switch on, so the prepared demo services are listed
+next to the real sellers (the Claude Desktop bundle has it on already):
+
+```bash
+claude mcp add superstables -e SUPERSTABLES_DEMO_SERVICES=on -- node "$(pwd)/dist/mcp/main.js"
+```
+
 In MetaMask: have an account with test USDC on Base Sepolia — 1 USDC is plenty at 0.01 USDC a
 call, from <https://faucet.circle.com>. No ETH is needed. If the account has never seen Base
 Sepolia, connect it to the approval page once before the room so the network is already added:
@@ -48,8 +55,9 @@ this demo has a wallet daemon and a server in two terminals.
 > Find me a paid service for BTC market data.
 
 It calls `find_services` and comes back with the demo market data service: 0.01 USDC per
-request, Base Sepolia (testnet), live, actionable. Index listings may appear underneath, marked
-as not callable with the reason.
+request, Base Sepolia (testnet), live, actionable. Index listings appear underneath, marked as
+not callable with the reason. The hosted catalogue's prepared demo services (simulated answers,
+marked as such) show up only when the question matches what they sell.
 
 **2. Ask what it costs.**
 

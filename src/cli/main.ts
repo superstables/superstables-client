@@ -114,11 +114,13 @@ program
     }
     console.log("");
     console.log("Claude Code:");
-    console.log(`  claude mcp add superstables -- node ${mcpEntryPath()}`);
+    console.log(`  claude mcp add superstables -e SUPERSTABLES_DEMO_SERVICES=on -- node ${mcpEntryPath()}`);
+    console.log("  The switch adds Superstables' prepared demo services, whose answers are simulated;");
+    console.log("  leave it out to see only real sellers.");
     console.log("");
     console.log("Claude Desktop:");
     console.log("  Settings → Extensions → Advanced → Install Extension… and choose the .mcpb file");
-    console.log("  built by `npm run bundle`.");
+    console.log("  built by `npm run bundle`. The bundle has the demo services switch on.");
   });
 
 // ── wallet ───────────────────────────────────────────────────────────────────────────────
@@ -212,9 +214,10 @@ program
   .argument("[query]", "what to look for, in plain words")
   .option("--limit <n>", "how many services to show", toInteger, 20)
   .option("--all", "also show services this client cannot pay, and why")
+  .option("--demo", "include the simulated demo services from the hosted catalogue (SUPERSTABLES_DEMO_SERVICES=on does the same)")
   .option("--json", "print the raw listings")
-  .action(async (query: string | undefined, options: { limit: number; all?: boolean; json?: boolean }) => {
-    const found = await findServices({ query, limit: options.limit, probe: true });
+  .action(async (query: string | undefined, options: { limit: number; all?: boolean; json?: boolean; demo?: boolean }) => {
+    const found = await findServices({ query, limit: options.limit, probe: true, ...(options.demo ? { demoServices: true } : {}) });
     const services = options.all ? found.services : found.services.filter((s) => s.actionable);
     if (options.json) {
       console.log(json({ services, warnings: found.warnings }));
@@ -229,13 +232,14 @@ program
     } else {
       console.log(
         table(
-          ["id", "name", "price", "network", "live", "payable"],
+          ["id", "name", "price", "network", "live", "simulated", "payable"],
           services.map((service) => [
             service.id,
             service.name,
             service.payment.price?.display ?? "ask for a quote",
             service.payment.networkLabel,
             yesNo(service.live),
+            service.mock ? "yes" : "no",
             payable(service),
           ]),
         ),

@@ -86,7 +86,7 @@ steps with your local paths. In the default MetaMask mode, it does not create a 
 **Connect an agent.** Claude Code:
 
 ```bash
-claude mcp add superstables -- node "$(pwd)/dist/mcp/main.js"
+claude mcp add superstables -e SUPERSTABLES_DEMO_SERVICES=on -- node "$(pwd)/dist/mcp/main.js"
 ```
 
 Claude Desktop, from a checkout instead of the release: `npm run bundle` writes the same file
@@ -207,8 +207,13 @@ local policy and what a compromised agent or client process could do.
 
 ## Run the seller yourself
 
-The catalogue includes the hosted Superstables demo seller and a third-party x402 service.
-To inspect the seller side of the flow, run the demo seller from this repository. You can
+The built-in catalogue includes the hosted Superstables demo seller and a third-party x402
+service. With the demo services switch on (`SUPERSTABLES_DEMO_SERVICES=on`, which the Claude
+Desktop bundle and the demo setup snippets set), discovery also reads the hosted catalogue at
+`https://www.superstables.com/api/demo/catalogue`, where Superstables publishes its prepared
+demo services: simulated answers, each marked `mock` in the listing and listed after the real
+sellers. With the switch off, the default, the catalogue is never read and no simulated listing
+appears. To inspect the seller side of the flow, run the demo seller from this repository. You can
 observe its HTTP 402 response, facilitator interaction and log entry for each paid call:
 
 ```bash

@@ -1,18 +1,23 @@
-// Finding something to pay for. Two sources, deliberately kept apart:
+// Finding something to pay for. Three sources, deliberately kept apart:
 //
 //   the built-in catalogue   two services on the testnet with their request parameters
 //                            written down: one run by us, one run by a third party. These
 //                            are the listings this release can call end to end without a
-//                            human reading docs.
+//                            human reading docs, and they work with no network at all.
+//   the hosted catalogue     the paid demo endpoints Superstables operates, published by
+//                            the website in this same shape, parameters included. A new
+//                            demo service there reaches agents without a client release.
 //   the Superstables index   the public directory of x402 services. It records what a
 //                            service costs and where it lives, but not yet the request
 //                            parameters it needs, so those listings are shown and not
 //                            acted on. Saying why is the point: an agent that cannot
 //                            pay something should be able to explain the reason.
 //
-// The index is a nice-to-have: if it is slow or down, discovery still works and the
-// caller gets a warning rather than an error.
+// The hosted catalogue and the index are nice-to-haves: if either is slow or down,
+// discovery still works from the built-in catalogue and the caller gets a warning rather
+// than an error.
 
+import { z } from "zod";
 import { describeNetwork, toCaip2 } from "./chain.js";
 import type { ResolvedRequest, ServiceListing, ServiceParam } from "./types.js";
 
@@ -29,7 +34,36 @@ export const HOSTED_DEMO_SERVICE_URL = "https://www.superstables.com/api/demo/ma
 /** Where the public index lives. Overridable so a self-hosted index can be pointed at. */
 export const INDEX_URL = process.env.SUPERSTABLES_INDEX_URL ?? "https://www.superstables.com/api/v1/services";
 
+/** Where the hosted catalogue lives: every paid demo endpoint the website operates, with parameters. */
+export const HOSTED_CATALOGUE_URL = "https://www.superstables.com/api/demo/catalogue";
+
+/**
+ * The hosted catalogue to read, or undefined when it is switched off. SUPERSTABLES_CATALOGUE_URL
+ * points at another deployment (a local `next dev`, say); the empty string or "off" disables it,
+ * which is what an air-gapped test wants.
+ */
+export function hostedCatalogueUrl(): string | undefined {
+  const raw = process.env.SUPERSTABLES_CATALOGUE_URL;
+  if (raw === undefined) return HOSTED_CATALOGUE_URL;
+  const trimmed = raw.trim();
+  if (trimmed === "" || trimmed.toLowerCase() === "off") return undefined;
+  return trimmed;
+}
+
+/**
+ * Are the simulated demo services switched on? SUPERSTABLES_DEMO_SERVICES=on (or 1, true, yes)
+ * includes the hosted catalogue's prepared services in discovery. Off, the default, never reads
+ * the catalogue, so a client that was not set up for the demo never sees a simulated listing.
+ * The Claude Desktop bundle and the demo page's configuration snippets switch it on.
+ */
+export function demoServicesEnabled(): boolean {
+  const raw = (process.env.SUPERSTABLES_DEMO_SERVICES ?? "").trim().toLowerCase();
+  return raw === "on" || raw === "1" || raw === "true" || raw === "yes";
+}
+
 const INDEX_TIMEOUT_MS = 5_000;
+const CATALOGUE_TIMEOUT_MS = 5_000;
+const CATALOGUE_CACHE_MS = 5 * 60_000;
 const PROBE_TIMEOUT_MS = 3_000;
 const DEFAULT_LIMIT = 20;
 
@@ -48,6 +82,8 @@ export interface FindServicesOptions {
   includeIndex?: boolean;
   /** Check that the demo service is actually answering. Costs one HTTP request. */
   probe?: boolean;
+  /** Include the simulated demo services from the hosted catalogue. Default: the SUPERSTABLES_DEMO_SERVICES switch. */
+  demoServices?: boolean;
 }
 
 /** Discovery never fails because a remote source did: what went wrong comes back as a warning. */
@@ -132,9 +168,43 @@ export function externalCoinPriceService(): ServiceListing {
   };
 }
 
-/** Every listing this release can call as-is: ours first, then the third-party one. */
+/** Every built-in listing this release can call as-is: ours first, then the third-party one. */
 export function catalogue(): ServiceListing[] {
   return [demoService(), externalCoinPriceService()];
+}
+
+/**
+ * The built-in catalogue plus whatever the hosted catalogue adds to it. The built-in listings
+ * are authoritative for the ids they know (they work with no network, and they honour
+ * SUPERSTABLES_DEMO_SERVICE_URL); hosted entries with other ids follow them. When the hosted
+ * catalogue cannot be read, discovery carries on from the built-in listings and says so.
+ */
+export async function allListings(
+  options: { includeHosted?: boolean; demoServices?: boolean } = {},
+): Promise<{ listings: ServiceListing[]; warnings: string[] }> {
+  const { includeHosted = true, demoServices = demoServicesEnabled() } = options;
+  const builtIn = catalogue();
+  const url = hostedCatalogueUrl();
+  // The hosted catalogue holds the simulated demo services: it is read only for the demo.
+  if (!includeHosted || !demoServices || !url) return { listings: builtIn, warnings: [] };
+
+  const warnings: string[] = [];
+  let hosted: ServiceListing[];
+  try {
+    hosted = await fetchHostedCatalogue(url);
+  } catch (err) {
+    warnings.push(`The hosted catalogue could not be read (${message(err)}); showing the built-in listings only.`);
+    return { listings: builtIn, warnings };
+  }
+
+  const known = new Set(builtIn.map((s) => s.id));
+  const merged = [...builtIn];
+  for (const listing of hosted) {
+    if (known.has(listing.id)) continue;
+    merged.push(listing);
+    known.add(listing.id);
+  }
+  return { listings: merged, warnings };
 }
 
 /**
@@ -142,34 +212,55 @@ export function catalogue(): ServiceListing[] {
  * because those are the listings that can be paid; index results follow.
  */
 export async function findServices(options: FindServicesOptions = {}): Promise<DiscoveryResult> {
-  const { query = "", limit = DEFAULT_LIMIT, includeIndex = true, probe = false } = options;
-  const warnings: string[] = [];
-  const services: ServiceListing[] = [];
+  const { query = "", limit = DEFAULT_LIMIT, includeIndex = true, probe = false, demoServices } = options;
 
-  for (const listing of catalogue()) {
-    if (matchesCatalogue(query, listing)) services.push(probe ? await probeDemo(listing) : listing);
+  // Network sources (the hosted catalogue and the index) are both behind includeIndex, so a
+  // caller that asked for no network gets none. They are read side by side.
+  const [{ listings, warnings }, index] = await Promise.all([
+    allListings({ includeHosted: includeIndex, demoServices }),
+    includeIndex
+      ? fetchIndex(query, limit).then((rows) => ({ rows, error: undefined })).catch((err: unknown) => ({ rows: [] as ServiceListing[], error: message(err) }))
+      : Promise.resolve({ rows: [] as ServiceListing[], error: undefined }),
+  ]);
+  if (index.error !== undefined) {
+    warnings.push(`The Superstables index could not be read (${index.error}); showing the built-in catalogue only.`);
   }
 
-  if (includeIndex) {
-    try {
-      services.push(...(await fetchIndex(query, limit)));
-    } catch (err) {
-      warnings.push(
-        `The Superstables index could not be read (${message(err)}); showing the built-in catalogue only.`,
-      );
-    }
-  }
+  // Catalogue listings that plausibly match, best match first: with a dozen prepared services
+  // in the catalogue, "transcribe this clip" must put the transcription service ahead of the
+  // ones that merely share the demo vocabulary. Ties keep catalogue order. A listing that only
+  // matched through the demo vocabulary goes after the index, so index results stay visible.
+  const matched = listings
+    .map((listing, order) => ({ listing, order, score: relevance(query, listing) }))
+    .filter(({ listing }) => matchesCatalogue(query, listing))
+    .sort((a, b) => b.score - a.score || a.order - b.order);
+  const words = queryWords(query).length > 0;
+  // Simulated listings, when the demo switch let them in at all, come after every real seller.
+  const real = matched.filter((m) => !m.listing.mock);
+  const simulated = matched.filter((m) => m.listing.mock).map((m) => m.listing);
+  const byWords = real.filter((m) => m.score > 0 || !words).map((m) => m.listing);
+  const byVocabulary = real.filter((m) => m.score === 0 && words).map((m) => m.listing);
+  const ordered = [...byWords, ...index.rows, ...byVocabulary, ...simulated].slice(0, Math.max(0, limit));
 
-  return { services: services.slice(0, Math.max(0, limit)), warnings };
+  // Probe only what is being returned, and only listings that could be paid; side by side,
+  // so a slow seller costs one timeout rather than one per listing.
+  const services = probe
+    ? await Promise.all(ordered.map((listing) => (listing.source === "demo-catalogue" && listing.actionable ? probeDemo(listing) : listing)))
+    : ordered;
+  return { services, warnings };
 }
 
 /** One listing by id, from either source. Undefined when nothing has that id. */
 export async function getService(
   id: string,
-  options: { includeIndex?: boolean; probe?: boolean } = {},
+  options: { includeIndex?: boolean; probe?: boolean; demoServices?: boolean } = {},
 ): Promise<ServiceListing | undefined> {
-  const { includeIndex = true, probe = false } = options;
-  const listed = catalogue().find((s) => s.id === id);
+  const { includeIndex = true, probe = false, demoServices } = options;
+  // Built-in first, without a network round trip: the demo service is known offline.
+  const builtIn = catalogue().find((s) => s.id === id);
+  if (builtIn) return probe ? await probeDemo(builtIn) : builtIn;
+  const { listings } = await allListings({ includeHosted: includeIndex, demoServices });
+  const listed = listings.find((s) => s.id === id);
   if (listed) return probe ? await probeDemo(listed) : listed;
   if (!includeIndex) return undefined;
   try {
@@ -228,21 +319,65 @@ export function resolveRequest(service: ServiceListing, params: Record<string, s
 
 // ── The built-in catalogue ─────────────────────────────────────────────────────────────
 
-/** Does this query plausibly ask for a catalogue listing? An empty query asks for everything. */
+/** Words that say nothing about which service is wanted: articles, glue, and the verbs every request uses. */
+const STOPWORDS = new Set([
+  "the", "this", "that", "these", "those", "for", "and", "with", "from", "into", "onto", "about",
+  "get", "buy", "find", "give", "show", "tell", "use", "using", "need", "want", "please", "can", "could",
+  "you", "your", "our", "its", "some", "one", "any", "all", "how", "what", "which", "who",
+  "paid", "pay", "service", "services", "provider",
+]);
+
+/** The words of a query worth matching on: three letters or more and not a stopword. */
+function queryWords(query: string): string[] {
+  return query
+    .toLowerCase()
+    .split(/[^a-z0-9.]+/)
+    .filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+}
+
+/** "transcribe" and "transcription" share their first six letters; "transaction" does not. */
+function stem(word: string): string {
+  return word.length > 6 ? word.slice(0, 6) : word;
+}
+
+/** What a listing says about itself, lowercased: its id and name count double against the rest. */
+function ownText(listing: ServiceListing): { strong: string; weak: string } {
+  return {
+    strong: [listing.id, listing.name].join(" ").toLowerCase(),
+    weak: [
+      listing.description,
+      listing.operator ?? "",
+      ...listing.params.flatMap((p) => [p.name, p.description ?? "", p.example ?? "", ...(p.enum ?? [])]),
+    ]
+      .join(" ")
+      .toLowerCase(),
+  };
+}
+
+/** How well the listing itself answers the query's words. Zero for an empty query. */
+function relevance(query: string, listing: ServiceListing): number {
+  const { strong, weak } = ownText(listing);
+  let score = 0;
+  for (const word of queryWords(query)) {
+    const s = stem(word);
+    if (strong.includes(s)) score += 2;
+    else if (weak.includes(s)) score += 1;
+  }
+  return score;
+}
+
+/**
+ * Does this query plausibly ask for a catalogue listing? An empty query asks for everything.
+ * The demo vocabulary ("bitcoin", "price", "testnet"...) surfaces the market data service
+ * alone: it is what a person trying the demo asks for, and it must not drag every other
+ * listing along.
+ */
 function matchesCatalogue(query: string, listing: ServiceListing): boolean {
-  const tokens = query.toLowerCase().split(/[^a-z0-9.]+/).filter((t) => t.length >= 2);
-  if (tokens.length === 0) return true;
-  const haystack = [
-    listing.id,
-    listing.name,
-    listing.description,
-    listing.operator ?? "",
-    ...listing.params.flatMap((p) => [p.name, p.description ?? "", p.example ?? "", ...(p.enum ?? [])]),
-    ...DEMO_KEYWORDS,
-  ]
-    .join(" ")
-    .toLowerCase();
-  return tokens.some((token) => haystack.includes(token));
+  const words = queryWords(query);
+  if (words.length === 0) return true;
+  if (relevance(query, listing) > 0) return true;
+  if (listing.id !== DEMO_SERVICE_ID) return false;
+  return words.some((word) => DEMO_KEYWORDS.some((keyword) => keyword.includes(stem(word))));
 }
 
 /**
@@ -272,6 +407,145 @@ function withExamples(service: ServiceListing): string {
     if (param.required && param.example) url.searchParams.set(param.name, param.example);
   }
   return url.toString();
+}
+
+// ── The hosted catalogue ───────────────────────────────────────────────────────────────
+
+/** One entry as the website publishes it. Anything it does not say is filled in conservatively. */
+const HostedParamSchema = z.object({
+  name: z.string().min(1),
+  in: z.literal("query"),
+  required: z.boolean(),
+  description: z.string().optional(),
+  example: z.string().optional(),
+  enum: z.array(z.string()).optional(),
+});
+
+const HostedListingSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string(),
+  endpoint: z.string().min(1),
+  method: z.literal("GET"),
+  params: z.array(HostedParamSchema),
+  payment: z.object({
+    rail: z.literal("x402"),
+    scheme: z.literal("exact"),
+    network: z.string().min(1),
+    networkLabel: z.string().optional(),
+    asset: z.string().min(1),
+    price: z.object({ amountDecimal: z.number().positive(), asset: z.string(), display: z.string() }).optional(),
+    payTo: z.string().optional(),
+    configured: z.boolean().optional(),
+  }),
+  operator: z.string().optional(),
+  testnet: z.boolean().optional(),
+  mock: z.boolean().optional(),
+  example_prompts: z.array(z.string()).optional(),
+});
+
+const HostedCatalogueSchema = z.object({ services: z.array(z.unknown()) });
+
+let catalogueCache: { url: string; at: number; listings: ServiceListing[] } | undefined;
+/** A failed read is remembered briefly, so an outage costs one timeout rather than one per call. */
+let catalogueFailure: { url: string; at: number; error: string } | undefined;
+const CATALOGUE_FAILURE_MS = 60_000;
+
+/** Forgets the cached hosted catalogue, and any remembered failure. Tests use this; the client never needs it. */
+export function clearHostedCatalogueCache(): void {
+  catalogueCache = undefined;
+  catalogueFailure = undefined;
+}
+
+/**
+ * Read the hosted catalogue once per five minutes. Entries that do not parse are dropped one
+ * by one rather than taking the whole catalogue down with them. Throws when the catalogue
+ * itself cannot be read, so the caller can say so.
+ */
+export async function fetchHostedCatalogue(url?: string): Promise<ServiceListing[]> {
+  const target = url ?? hostedCatalogueUrl();
+  if (!target) return [];
+  const now = Date.now();
+  if (catalogueCache && catalogueCache.url === target && now - catalogueCache.at < CATALOGUE_CACHE_MS) {
+    return catalogueCache.listings;
+  }
+  if (catalogueFailure && catalogueFailure.url === target && now - catalogueFailure.at < CATALOGUE_FAILURE_MS) {
+    throw new Error(catalogueFailure.error);
+  }
+  try {
+    const res = await fetch(target, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(CATALOGUE_TIMEOUT_MS) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const parsed = HostedCatalogueSchema.safeParse(await res.json());
+    if (!parsed.success) throw new Error("the response is not a catalogue");
+    const listings: ServiceListing[] = [];
+    for (const row of parsed.data.services) {
+      const entry = HostedListingSchema.safeParse(row);
+      if (!entry.success) continue;
+      const listing = fromHostedRow(entry.data);
+      if (listing) listings.push(listing);
+    }
+    catalogueCache = { url: target, at: now, listings };
+    catalogueFailure = undefined;
+    return listings;
+  } catch (err) {
+    catalogueFailure = { url: target, at: now, error: message(err) };
+    throw err;
+  }
+}
+
+function fromHostedRow(row: z.infer<typeof HostedListingSchema>): ServiceListing | undefined {
+  let endpoint: URL;
+  try {
+    endpoint = new URL(row.endpoint);
+  } catch {
+    return undefined;
+  }
+  // A payment credential travels to the endpoint: only https, or plain http on this machine.
+  const secure =
+    endpoint.protocol === "https:" ||
+    (endpoint.protocol === "http:" && /^(127\.0\.0\.1|localhost|\[::1\])$/.test(endpoint.hostname));
+  const network = toCaip2(row.payment.network);
+  const networkLabel = row.payment.networkLabel ?? describeNetwork(row.payment.network);
+  const supported = network === "eip155:84532" && row.payment.asset.toUpperCase() === "USDC";
+  const configured = row.payment.configured !== false;
+  const notActionableReason = !secure
+    ? "the endpoint is not https, so a payment credential would travel in the clear"
+    : !supported
+      ? `${networkLabel} in ${row.payment.asset} is not supported in this release`
+      : !configured
+        ? "the seller has no payout address configured, so it cannot be paid right now"
+        : undefined;
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    endpoint: row.endpoint,
+    method: "GET",
+    params: row.params.map((p) => ({
+      name: p.name,
+      in: "query",
+      required: p.required,
+      ...(p.description !== undefined ? { description: p.description } : {}),
+      ...(p.example !== undefined ? { example: p.example } : {}),
+      ...(p.enum && p.enum.length > 0 ? { enum: p.enum } : {}),
+    })),
+    payment: {
+      rail: "x402",
+      scheme: "exact",
+      network,
+      networkLabel,
+      asset: row.payment.asset,
+      ...(row.payment.price ? { price: row.payment.price } : {}),
+    },
+    ...(row.operator ? { operator: row.operator } : {}),
+    source: "demo-catalogue",
+    // What the network says, not what the row claims.
+    testnet: network === "eip155:84532" || /sepolia|testnet|devnet/i.test(networkLabel),
+    actionable: notActionableReason === undefined,
+    ...(notActionableReason ? { notActionableReason } : {}),
+    ...(row.mock !== undefined ? { mock: row.mock } : {}),
+    ...(row.example_prompts && row.example_prompts.length > 0 ? { examplePrompts: row.example_prompts } : {}),
+  };
 }
 
 // ── The Superstables index ─────────────────────────────────────────────────────────────

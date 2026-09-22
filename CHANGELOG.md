@@ -7,6 +7,33 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The hosted catalogue, behind a demo switch.** With `SUPERSTABLES_DEMO_SERVICES=on` (set by
+  the Claude Desktop bundle, the demo setup snippets and `find --demo`), discovery also reads
+  `https://www.superstables.com/api/demo/catalogue`, where the website publishes its prepared
+  demo services with their request parameters, so a new demo service there reaches demo users
+  without a client release. Off, the default, the catalogue is never read and no simulated
+  listing appears. Simulated listings (`mock: true`) always come after the real sellers. The
+  built-in listings stay authoritative for the ids they know and still work with no network. A hosted entry this release cannot pay (another network, no payout
+  address configured) is listed with the reason. When the catalogue cannot be read, discovery
+  carries on from the built-in listings and says so in `warnings`. `SUPERSTABLES_CATALOGUE_URL`
+  points at another deployment; the empty string or `off` disables it. Listings gained two
+  optional fields, `mock` (the seller says its output is prepared, simulated data) and
+  `examplePrompts`. A hosted entry whose endpoint is not https (other than on this machine) is
+  listed but not payable, with the reason.
+
+### Changed
+
+- **Ranking.** `find` and `find_services` now order catalogue matches by how well the words of
+  the query match each listing's own id, name, description and parameters (stopwords ignored,
+  word stems matched), put index listings after them, and reserve the demo vocabulary
+  ("bitcoin", "price", "testnet"...) for the market data service alone, so a dozen prepared
+  services no longer crowd out the index. The hosted catalogue and the index are read side by
+  side, only the listings being returned are probed, in parallel, and a failed catalogue read
+  is remembered for a minute rather than retried on every call. The CLI's `find` table gained a
+  `simulated` column.
+
 ## [0.1.1] - 2026-09-22
 
 Documentation only. No change to the client's behaviour.

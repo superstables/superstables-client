@@ -19,7 +19,8 @@
       "command": "node",
       "args": ["${__dirname}/dist/mcp/main.js"],
       "env": {
-        "SUPERSTABLES_WALLET_URL": "${user_config.wallet_url}"
+        "SUPERSTABLES_WALLET_URL": "${user_config.wallet_url}",
+        "SUPERSTABLES_DEMO_SERVICES": "on"
       }
     }
   },
@@ -35,7 +36,7 @@
   "tools": [
     {
       "name": "find_services",
-      "description": "Search for paid services that can be quoted and paid, and say which ones this client can actually call."
+      "description": "Search for paid services that can be quoted and paid, and say which ones this client can actually call. Includes Superstables' prepared demo services, whose answers are simulated and marked as such, after the real sellers."
     },
     {
       "name": "quote",

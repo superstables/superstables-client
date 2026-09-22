@@ -60,7 +60,7 @@ Not having connected an account yet is fine and is not a failure.
 From the repository root:
 
 ```bash
-claude mcp add superstables -- node "$(pwd)/dist/mcp/main.js"
+claude mcp add superstables -e SUPERSTABLES_DEMO_SERVICES=on -- node "$(pwd)/dist/mcp/main.js"
 ```
 
 `superstables setup` prints this line with the absolute path already filled in. Then, in Claude
@@ -222,6 +222,8 @@ wallet, `pay` fails with "the wallet is not running", and nothing can be signed.
 | `SUPERSTABLES_MCP_WAIT_MS` | `20000` | How long the MCP tools wait for a payment before answering "still waiting" |
 | `SUPERSTABLES_RPC_URL` | `https://sepolia.base.org` | Base Sepolia RPC, used to read the USDC balance |
 | `SUPERSTABLES_INDEX_URL` | `https://www.superstables.com/api/v1/services` | The public service index |
+| `SUPERSTABLES_DEMO_SERVICES` | unset (off) | `on` includes Superstables' prepared demo services (simulated answers, marked `mock`) in discovery, after the real sellers. The Claude Desktop bundle and the demo setup snippets set it; leave it off to see only real sellers |
+| `SUPERSTABLES_CATALOGUE_URL` | `https://www.superstables.com/api/demo/catalogue` | Where the prepared demo services are published, read only when `SUPERSTABLES_DEMO_SERVICES` is on. Point it at another deployment, or set it to `off` |
 | `SUPERSTABLES_DOCTOR_OFFLINE` | unset | `1` makes `doctor` skip every check that needs a network |
 
 `SUPERSTABLES_HOME` is read when state is first touched, so set it before starting a process
