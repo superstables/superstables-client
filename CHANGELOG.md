@@ -7,6 +7,17 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-22
+
+Documentation only. No change to the client's behaviour.
+
+### Changed
+
+- The README and `docs/install.md` now say where the Claude Desktop bundle comes from: the
+  `.mcpb` is never committed to the repository, users download it from the GitHub Release,
+  where it is built from the exact tagged commit, and `npm run bundle` exists only to install
+  an unreleased build from a checkout.
+
 ## [0.1.0] - 2026-09-18
 
 The first release of the Superstables client: a TypeScript SDK, a local MCP server and a CLI

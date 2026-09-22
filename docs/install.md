@@ -3,6 +3,10 @@
 Node 20 or newer, and MetaMask in your browser. Everything runs on your machine except the paid
 service, the public facilitators, the Base Sepolia RPC and the Superstables index.
 
+Using Claude Desktop and nothing else? Skip the checkout: every release ships an installable
+bundle, and Node is not needed. Go straight to [Claude Desktop](#claude-desktop), then come back
+for the MetaMask steps.
+
 ```bash
 git clone https://github.com/superstables/superstables-client.git
 cd superstables-client
@@ -73,16 +77,16 @@ claude mcp add superstables --env SUPERSTABLES_HOME=/path/to/home -- node "$(pwd
 
 ## Claude Desktop
 
-Build the bundle:
+Download `superstables-<version>.mcpb` from the
+[latest release](https://github.com/superstables/superstables-client/releases/latest). It is
+the compiled server with its runtime dependencies: nothing to clone, nothing to build, and
+Claude Desktop runs it with its own Node runtime.
 
-```bash
-npm run bundle
-```
+From a checkout, `npm run bundle` produces the same file. It compiles, stages the server with its
+runtime dependencies, validates the manifest and writes `build/superstables-<version>.mcpb`,
+printing the path and size.
 
-It compiles, stages the server with its runtime dependencies, validates the manifest and writes
-`build/superstables-<version>.mcpb`, printing the path and size.
-
-In Claude Desktop: **Settings → Extensions → Advanced → Install Extension…**, choose that file,
+In Claude Desktop: **Settings → Extensions → Advanced → Install Extension…**, choose the file,
 and install it. The bundle keeps its state in `~/.superstables`; the only setting it exposes is
 the local wallet's URL, which matters only in `--wallet local` mode.
 
@@ -104,7 +108,7 @@ Install a new `.mcpb` like this, and the question does not arise:
    there.
 3. Install the new `.mcpb`: **Advanced → Install Extension…**.
 4. Check that the version Claude Desktop shows for the extension is the version in the filename
-   of the bundle you just built.
+   of the bundle you just installed.
 5. Open a **new** chat and ask for the wallet status. The answer carries `client_version` and
    `home`: the first must be the version you installed, the second the directory you expect
    (`~/.superstables` unless you changed it). An older version there means an older build is

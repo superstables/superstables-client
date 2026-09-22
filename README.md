@@ -61,7 +61,16 @@ mainnet.
 
 ## Quick start
 
-You need Node 20 or newer and MetaMask in your browser.
+You need MetaMask in your browser, and Node 20 or newer unless Claude Desktop is the only agent
+you connect.
+
+**Claude Desktop.** Download `superstables-<version>.mcpb` from the
+[latest release](https://github.com/superstables/superstables-client/releases/latest), then
+Settings → Extensions → Advanced → Install Extension… and choose the file. The bundle is the
+compiled server with its dependencies, so there is nothing to clone or build; Claude Desktop
+runs it with its own Node runtime. Skip to *Get MetaMask ready*.
+
+**Everything else** runs from a checkout:
 
 ```bash
 git clone https://github.com/superstables/superstables-client.git
@@ -80,8 +89,8 @@ steps with your local paths. In the default MetaMask mode, it does not create a 
 claude mcp add superstables -- node "$(pwd)/dist/mcp/main.js"
 ```
 
-Claude Desktop: `npm run bundle`, then Settings → Extensions → Advanced → Install Extension…
-and choose `build/superstables-<version>.mcpb`.
+Claude Desktop, from a checkout instead of the release: `npm run bundle` writes the same file
+to `build/superstables-<version>.mcpb`; install it as above.
 
 **Get MetaMask ready.** Install it from <https://metamask.io/download> if needed. Add Base
 Sepolia, or accept the approval page's network prompt when you first connect. Fund your
@@ -236,8 +245,20 @@ npm run build
 npm run bundle    # build/superstables-<version>.mcpb for Claude Desktop
 ```
 
-Releases are tagged `v<version>` on GitHub, with the release notes taken from
-[CHANGELOG.md](CHANGELOG.md) and the `.mcpb` bundle attached to the tag.
+### Where the `.mcpb` comes from
+
+The Claude Desktop bundle is **not committed to this repository**. `*.mcpb` and `build/` are
+ignored, and the only bundle inputs under version control are `mcpb/manifest.json` and
+`scripts/bundle.mjs`. Users never build it: the file they install is a
+[GitHub Release](https://github.com/superstables/superstables-client/releases) asset,
+`superstables-<version>.mcpb`, built by the release process from the exact tagged commit and
+attached to that release next to the notes taken from [CHANGELOG.md](CHANGELOG.md). Each
+release is tagged `v<version>`.
+
+`npm run bundle` exists for development: it produces the same file from your checkout, so you
+can install an unreleased build in Claude Desktop (use `--dev` to stamp it with the commit, see
+[docs/install.md](docs/install.md#updating-the-extension)). Do not commit its output or attach it
+to a release by hand.
 
 ## Licence
 
