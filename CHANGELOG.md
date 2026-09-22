@@ -7,6 +7,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-22
+
+Discovery reads the hosted catalogue of prepared demo services and ranks matches by
+relevance; the docs say where the Claude Desktop bundle comes from.
+
 ### Added
 
 - **The hosted catalogue, behind a demo switch.** With `SUPERSTABLES_DEMO_SERVICES=on` (set by
@@ -33,13 +38,6 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   side, only the listings being returned are probed, in parallel, and a failed catalogue read
   is remembered for a minute rather than retried on every call. The CLI's `find` table gained a
   `simulated` column.
-
-## [0.1.1] - 2026-09-22
-
-Documentation only. No change to the client's behaviour.
-
-### Changed
-
 - The README and `docs/install.md` now say where the Claude Desktop bundle comes from: the
   `.mcpb` is never committed to the repository, users download it from the GitHub Release,
   where it is built from the exact tagged commit, and `npm run bundle` exists only to install
